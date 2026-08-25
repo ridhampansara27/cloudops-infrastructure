@@ -54,6 +54,55 @@ resource "aws_eks_cluster" "this" {
 
 
 
+
+# ------------------------------------------------------------
+# Managed-node launch template
+# ------------------------------------------------------------
+
+resource "aws_launch_template" "nodes" {
+
+  # Give the launch template a stable project prefix.
+  name_prefix = "${var.cluster_name}-nodes-"
+
+  # Require Instance Metadata Service Version 2.
+  metadata_options {
+
+    # Keep the metadata endpoint available to the node itself.
+    http_endpoint = "enabled"
+
+    # Require IMDSv2 session tokens.
+    http_tokens = "required"
+
+    # Keep metadata responses on the node rather than forwarding
+    # them into normal Pod network namespaces.
+    http_put_response_hop_limit = 1
+
+    # Prevent exposing EC2 instance tags through IMDS.
+    instance_metadata_tags = "disabled"
+  }
+
+  # Automatically make new template versions the default.
+  update_default_version = true
+
+  # Apply common identification to EC2 worker instances.
+  tag_specifications {
+
+    # Apply these tags to created EC2 instances.
+    resource_type = "instance"
+
+    tags = {
+
+      # Identify the EKS cluster.
+      Name = "${var.cluster_name}-worker"
+
+      # Identify infrastructure ownership.
+      ManagedBy = "terraform"
+    }
+  }
+}
+
+
+
 # ------------------------------------------------------------
 # EKS managed worker nodes
 # ------------------------------------------------------------
@@ -106,5 +155,17 @@ resource "aws_eks_node_group" "default" {
     ignore_changes = [
       scaling_config[0].desired_size,
     ]
+  }
+
+  # Configure node instances through our hardened launch template.
+  launch_template {
+
+    # Reference the custom launch template.
+    id = aws_launch_template.nodes.id
+
+    # Use the newest template version.
+    version = tostring(
+      aws_launch_template.nodes.latest_version
+    )
   }
 }

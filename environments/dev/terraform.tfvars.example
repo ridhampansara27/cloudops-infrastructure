@@ -1,8 +1,2 @@
-# Your AWS account.
-aws_account_id = "902664897666"
-
-
-# Restrict the public EKS API endpoint to your current public IP.
-cluster_endpoint_public_access_cidrs = [
-  "92.208.222.194/32",
-]
+# Replace this with the IAM role or user used for cluster administration.
+eks_admin_principal_arn = "arn:aws:iam::123456789012:role/CloudOpsEksAdministrator"

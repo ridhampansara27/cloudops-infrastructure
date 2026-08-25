@@ -69,3 +69,14 @@ variable "node_instance_types" {
     "t3.large",
   ]
 }
+
+
+# Define the IAM principal that receives Kubernetes administrator access.
+variable "eks_admin_principal_arn" {
+
+  # Expect an IAM user or role ARN.
+  type = string
+
+  # Require an explicit value.
+  nullable = false
+}

@@ -101,3 +101,20 @@ module "eks" {
     module.iam,
   ]
 }
+
+
+# ------------------------------------------------------------
+# Secrets Manager
+# ------------------------------------------------------------
+
+module "secrets" {
+
+  # Use reusable Secrets Manager resources.
+  source = "../../modules/secrets"
+
+  # Supply project name.
+  project_name = var.project_name
+
+  # Supply environment.
+  environment = var.environment
+}
