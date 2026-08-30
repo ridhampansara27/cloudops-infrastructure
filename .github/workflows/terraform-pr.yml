@@ -32,6 +32,12 @@ jobs:
     # Use GitHub's Ubuntu Linux runner.
     runs-on: ubuntu-24.04
 
+    # Supply environment-specific Terraform input values.
+    env:
+      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+      TF_VAR_cluster_endpoint_public_access_cidrs: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS }}
+      TF_VAR_eks_admin_principal_arn: ${{ vars.EKS_ADMIN_PRINCIPAL_ARN }}
+
     steps:
 
       # --------------------------------------------------------
