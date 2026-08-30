@@ -10,8 +10,14 @@ resource "aws_iam_openid_connect_provider" "github" {
   ]
 }
 
+
 # Read the AWS account where the GitHub OIDC roles are created.
 data "aws_caller_identity" "current" {}
+
+
+# ============================================================
+# GitHub Actions Terraform PR plan role
+# ============================================================
 
 # Build trust rules for Terraform PR planning.
 data "aws_iam_policy_document" "github_plan_assume_role" {
@@ -31,69 +37,20 @@ data "aws_iam_policy_document" "github_plan_assume_role" {
       ]
     }
 
-    # Permit short-lived OIDC sessions.
+    # Permit short-lived GitHub OIDC sessions.
     actions = [
       "sts:AssumeRoleWithWebIdentity",
     ]
 
-    condition {
 
-      # Require the AWS STS audience.
-      test = "StringEquals"
-
-      variable = (
-        "token.actions.githubusercontent.com:aud"
-      )
-
-      values = [
-        "repo:ridhampansara27@70193760/cloudops-infrastructure@1321840627:pull_request",
-      ]
-    }
-
-    condition {
-
-      # Allow only pull-request workflows from this repository.
-      test = "StringEquals"
-
-      variable = (
-        "token.actions.githubusercontent.com:sub"
-      )
-
-      values = [
-        "repo:ridhampansara27/cloudops-infrastructure:pull_request",
-      ]
-    }
-  }
-}
-
-
-# ------------------------------------------------------------
-# GitHub Actions Terraform apply role
-# ------------------------------------------------------------
-
-# Build the OIDC trust policy used by approved Terraform applies.
-data "aws_iam_policy_document" "github_apply_assume_role" {
-
-  statement {
-
-    sid = "AllowGitHubTerraformApply"
-
-    effect = "Allow"
-
-    principals {
-
-      type = "Federated"
-
-      identifiers = [
-        aws_iam_openid_connect_provider.github.arn,
-      ]
-    }
-
-    actions = [
-      "sts:AssumeRoleWithWebIdentity",
-    ]
-
-    # Require AWS STS as the OIDC audience.
+    # --------------------------------------------------------
+    # Validate the OIDC audience.
+    #
+    # aws-actions/configure-aws-credentials requests the token
+    # for AWS STS, therefore the audience must remain:
+    #
+    # sts.amazonaws.com
+    # --------------------------------------------------------
     condition {
 
       test = "StringEquals"
@@ -107,8 +64,89 @@ data "aws_iam_policy_document" "github_apply_assume_role" {
       ]
     }
 
-    # Only jobs using the protected GitHub Environment may
-    # assume this infrastructure deployment role.
+
+    # --------------------------------------------------------
+    # Restrict access to pull-request workflows from this
+    # exact GitHub repository.
+    #
+    # GitHub immutable OIDC subjects include:
+    #
+    #   repository owner name
+    #   repository owner numeric ID
+    #   repository name
+    #   repository numeric ID
+    #
+    # This prevents a renamed/recreated repository from
+    # inheriting access to this AWS role.
+    # --------------------------------------------------------
+    condition {
+
+      test = "StringEquals"
+
+      variable = (
+        "token.actions.githubusercontent.com:sub"
+      )
+
+      values = [
+        "repo:ridhampansara27@70193760/cloudops-infrastructure@1321840627:pull_request",
+      ]
+    }
+  }
+}
+
+
+# ============================================================
+# GitHub Actions Terraform apply role
+# ============================================================
+
+# Build the OIDC trust policy used by approved Terraform applies.
+data "aws_iam_policy_document" "github_apply_assume_role" {
+
+  statement {
+
+    sid = "AllowGitHubTerraformApply"
+
+    effect = "Allow"
+
+    principals {
+
+      # Trust the GitHub Actions OIDC provider.
+      type = "Federated"
+
+      identifiers = [
+        aws_iam_openid_connect_provider.github.arn,
+      ]
+    }
+
+    # Permit short-lived GitHub OIDC sessions.
+    actions = [
+      "sts:AssumeRoleWithWebIdentity",
+    ]
+
+
+    # --------------------------------------------------------
+    # Require AWS STS as the OIDC audience.
+    # --------------------------------------------------------
+    condition {
+
+      test = "StringEquals"
+
+      variable = (
+        "token.actions.githubusercontent.com:aud"
+      )
+
+      values = [
+        "sts.amazonaws.com",
+      ]
+    }
+
+
+    # --------------------------------------------------------
+    # Only jobs using the development-infrastructure GitHub
+    # Environment may assume the Terraform deployment role.
+    #
+    # This also uses GitHub's immutable repository subject.
+    # --------------------------------------------------------
     condition {
 
       test = "StringEquals"
@@ -136,11 +174,12 @@ resource "aws_iam_role" "github_apply" {
 }
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Terraform apply permissions
-# ------------------------------------------------------------
+# ============================================================
 
 data "aws_iam_policy_document" "github_apply_permissions" {
+
 
   # ----------------------------------------------------------
   # Terraform remote state bucket metadata
@@ -208,6 +247,7 @@ data "aws_iam_policy_document" "github_apply_permissions" {
       "*",
     ]
 
+
     # Prevent this development deployment role from changing
     # infrastructure in another AWS region.
     condition {
@@ -247,9 +287,13 @@ data "aws_iam_policy_document" "github_apply_permissions" {
   # Manage only Terraform-owned CloudOps development IAM
   # roles and policies.
   #
-  # Importantly, this does NOT include cloudops-terraform-apply,
-  # preventing the deployment role from modifying its own trust
-  # or permissions.
+  # This deliberately does NOT include:
+  #
+  #   cloudops-terraform-plan
+  #   cloudops-terraform-apply
+  #
+  # Therefore the deployment role cannot modify its own
+  # permissions or trust relationship.
   # ----------------------------------------------------------
   statement {
 
@@ -283,8 +327,9 @@ data "aws_iam_policy_document" "github_apply_permissions" {
   }
 
 
-  # Some AWS services may require their service-linked roles
-  # when infrastructure is created from a fresh AWS account.
+  # ----------------------------------------------------------
+  # Allow AWS to create required service-linked roles.
+  # ----------------------------------------------------------
   statement {
 
     sid = "CreateRequiredServiceLinkedRoles"
@@ -314,7 +359,9 @@ data "aws_iam_policy_document" "github_apply_permissions" {
   }
 
 
-  # Terraform uses STS to discover the active AWS identity.
+  # ----------------------------------------------------------
+  # Terraform uses STS to determine its active AWS identity.
+  # ----------------------------------------------------------
   statement {
 
     sid = "ReadCallerIdentity"
@@ -332,6 +379,7 @@ data "aws_iam_policy_document" "github_apply_permissions" {
 }
 
 
+# Create the managed IAM policy used by Terraform Apply.
 resource "aws_iam_policy" "github_apply" {
 
   name = "cloudops-terraform-apply"
@@ -346,6 +394,7 @@ resource "aws_iam_policy" "github_apply" {
 }
 
 
+# Attach the Terraform Apply permissions to the deployment role.
 resource "aws_iam_role_policy_attachment" "github_apply" {
 
   role = aws_iam_role.github_apply.name
@@ -354,7 +403,9 @@ resource "aws_iam_role_policy_attachment" "github_apply" {
 }
 
 
-
+# ============================================================
+# GitHub Actions Terraform plan role
+# ============================================================
 
 # Create the read-only Terraform planning role.
 resource "aws_iam_role" "github_plan" {
