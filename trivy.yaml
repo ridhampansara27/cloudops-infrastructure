@@ -1,0 +1,18 @@
+# Trivy configuration for this Terraform repository.
+
+# Use the structured YAML ignore file containing documented
+# development-environment security exceptions.
+ignorefile: .trivyignore.yaml
+
+
+misconfiguration:
+
+  # Scan Terraform source configuration only.
+  #
+  # Terraform execution plans are validated separately by the
+  # terraform-plan GitHub Actions job.
+  #
+  # This prevents local/generated Terraform plan files from being
+  # interpreted as additional IaC configuration sources.
+  scanners:
+    - terraform

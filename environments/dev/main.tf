@@ -17,6 +17,8 @@ locals {
 }
 
 
+
+
 # ------------------------------------------------------------
 # Networking
 # ------------------------------------------------------------
@@ -45,12 +47,17 @@ module "network" {
 
 module "iam" {
 
-  # Use reusable EKS IAM configuration.
   source = "../../modules/iam"
 
   project_name = var.project_name
 
   environment = var.environment
+
+  # Allow the CloudOps application workload to assume the
+  # customer/demo read-only AWS discovery role.
+  cloudops_discovery_role_arns = [
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/CloudOpsReadOnlyRole",
+  ]
 }
 
 

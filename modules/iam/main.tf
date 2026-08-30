@@ -270,3 +270,63 @@ resource "aws_iam_role_policy_attachment" "load_balancer_controller" {
   # Attach the official controller IAM permissions.
   policy_arn = aws_iam_policy.load_balancer_controller.arn
 }
+
+
+
+# ------------------------------------------------------------
+# CloudOps external AWS discovery role assumption
+# ------------------------------------------------------------
+
+# Build the permissions required for the application workload
+# to assume configured AWS discovery roles.
+data "aws_iam_policy_document" "cloudops_assume_discovery" {
+
+  # Do not create a policy document when no target roles exist.
+  count = (
+    length(var.cloudops_discovery_role_arns) > 0
+    ? 1
+    : 0
+  )
+
+  statement {
+
+    sid = "AssumeCloudOpsDiscoveryRoles"
+
+    effect = "Allow"
+
+    # EKS Pod Identity session tags are propagated during
+    # role chaining, so both actions are required.
+    actions = [
+      "sts:AssumeRole",
+      "sts:TagSession",
+    ]
+
+    # Restrict role assumption to explicitly configured
+    # discovery roles.
+    resources = (
+      var.cloudops_discovery_role_arns
+    )
+  }
+}
+
+
+# Attach the role-assumption permissions directly to the
+# CloudOps application workload role.
+resource "aws_iam_role_policy" "cloudops_assume_discovery" {
+
+  count = (
+    length(var.cloudops_discovery_role_arns) > 0
+    ? 1
+    : 0
+  )
+
+  name = "CloudOpsAssumeDiscoveryRole"
+
+  role = aws_iam_role.cloudops_workload.id
+
+  policy = (
+    data.aws_iam_policy_document
+    .cloudops_assume_discovery[0]
+    .json
+  )
+}
