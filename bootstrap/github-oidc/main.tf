@@ -46,7 +46,7 @@ data "aws_iam_policy_document" "github_plan_assume_role" {
       )
 
       values = [
-        "sts.amazonaws.com",
+        "repo:ridhampansara27@70193760/cloudops-infrastructure@1321840627:pull_request",
       ]
     }
 
@@ -118,7 +118,7 @@ data "aws_iam_policy_document" "github_apply_assume_role" {
       )
 
       values = [
-        "repo:ridhampansara27/cloudops-infrastructure:environment:development-infrastructure",
+        "repo:ridhampansara27@70193760/cloudops-infrastructure@1321840627:environment:development-infrastructure",
       ]
     }
   }
