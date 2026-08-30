@@ -1,0 +1,224 @@
+name: Terraform PR
+
+# Run Terraform validation when relevant infrastructure files
+# are changed in a pull request.
+on:
+  pull_request:
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "**/*.tfvars.example"
+      - "**/.terraform.lock.hcl"
+      - "trivy.yaml"
+      - ".trivyignore.yaml"
+      - ".github/workflows/terraform-pr.yml"
+      - ".github/workflows/terraform-apply.yml"
+
+
+# Default workflow permissions.
+# The validation job only needs permission to read repository contents.
+permissions:
+  contents: read
+
+
+jobs:
+
+  # ============================================================
+  # Terraform validation and security scanning
+  # ============================================================
+  terraform-check:
+    name: Terraform validate
+
+    # Use GitHub's Ubuntu Linux runner.
+    runs-on: ubuntu-24.04
+
+    # Supply environment-specific Terraform input values.
+    env:
+      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+      TF_VAR_cluster_endpoint_public_access_cidrs: '["${{ vars.EKS_PUBLIC_ACCESS_CIDR }}"]'
+      TF_VAR_eks_admin_principal_arn: ${{ vars.EKS_ADMIN_PRINCIPAL_ARN }}
+      TF_VAR_node_instance_types: '["${{ vars.EKS_NODE_INSTANCE_TYPES }}"]'
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v6
+
+
+      # --------------------------------------------------------
+      # Install Terraform
+      # --------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+
+        with:
+          terraform_version: "1.15.8"
+
+
+      # --------------------------------------------------------
+      # Check Terraform formatting
+      #
+      # -check:
+      #   Fails if Terraform files are not properly formatted.
+      #
+      # -recursive:
+      #   Checks Terraform files in all subdirectories.
+      # --------------------------------------------------------
+      - name: Terraform format
+        run: |
+          terraform fmt -check -recursive
+
+
+      # --------------------------------------------------------
+      # Initialize Terraform without connecting to the real
+      # remote backend.
+      #
+      # This is safe for PR validation because we only need
+      # Terraform providers/modules to perform validation.
+      # --------------------------------------------------------
+      - name: Terraform init
+        working-directory: environments/dev
+
+        run: |
+          terraform init -backend=false
+
+
+      # --------------------------------------------------------
+      # Validate Terraform configuration.
+      #
+      # This checks syntax, references, provider configuration,
+      # variable usage, module structure, etc.
+      # --------------------------------------------------------
+      - name: Terraform validate
+        working-directory: environments/dev
+
+        run: |
+          terraform validate
+
+
+      # --------------------------------------------------------
+      # Scan Terraform infrastructure configuration for
+      # HIGH and CRITICAL security misconfigurations.
+      #
+      # Repository-specific Trivy behavior is defined in trivy.yaml.
+      # Accepted, documented development exceptions are defined in
+      # .trivyignore.yaml.
+      - name: Trivy IaC scan
+
+        uses: aquasecurity/trivy-action@v0.36.0
+
+        with:
+          scan-type: config
+          scan-ref: "."
+          trivy-config: trivy.yaml
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+
+  # ============================================================
+  # Terraform plan
+  # ============================================================
+  terraform-plan:
+    name: Terraform plan
+
+    # ----------------------------------------------------------
+    # Only run Terraform plan for PRs created from branches
+    # inside this repository.
+    #
+    # Forked pull requests must NOT receive access to the AWS
+    # OIDC role or Terraform remote state.
+    # ----------------------------------------------------------
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    # Terraform plan should only run after all validation and
+    # security checks succeed.
+    needs:
+      - terraform-check
+
+    # Use GitHub's Ubuntu Linux runner.
+    runs-on: ubuntu-24.04
+
+    # Supply environment-specific Terraform input values.
+    env:
+      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+      TF_VAR_cluster_endpoint_public_access_cidrs: '["${{ vars.EKS_PUBLIC_ACCESS_CIDR }}"]'
+      TF_VAR_eks_admin_principal_arn: ${{ vars.EKS_ADMIN_PRINCIPAL_ARN }}
+      TF_VAR_node_instance_types: '["${{ vars.EKS_NODE_INSTANCE_TYPES }}"]'
+    # ----------------------------------------------------------
+    # OIDC permission is granted ONLY to this job because this
+    # job needs to authenticate with AWS.
+    # ----------------------------------------------------------
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v6
+
+
+      # --------------------------------------------------------
+      # Install Terraform
+      # --------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+
+        with:
+          terraform_version: "1.15.8"
+
+
+      # --------------------------------------------------------
+      # Authenticate to AWS using GitHub Actions OIDC.
+      #
+      # No permanent AWS access keys are stored in GitHub.
+      #
+      # TERRAFORM_PLAN_ROLE_ARN must exist as a GitHub
+      # repository variable.
+      # --------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: eu-central-1
+
+
+      # --------------------------------------------------------
+      # Initialize Terraform with the real S3 remote backend.
+      #
+      # TERRAFORM_STATE_BUCKET must exist as a GitHub
+      # repository variable.
+      # --------------------------------------------------------
+      - name: Terraform init
+        working-directory: environments/dev
+
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}"
+
+
+      # --------------------------------------------------------
+      # Generate Terraform execution plan.
+      #
+      # -input=false:
+      #   Prevents Terraform from waiting for interactive input.
+      #
+      # -no-color:
+      #   Makes GitHub Actions logs easier to read.
+      # --------------------------------------------------------
+      - name: Terraform plan
+        working-directory: environments/dev
+
+        run: |
+          terraform plan \
+            -lock=false \
+            -input=false \
+            -no-color

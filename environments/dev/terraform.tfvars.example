@@ -1,0 +1,2 @@
+# Replace this with the IAM role or user used for cluster administration.
+eks_admin_principal_arn = "arn:aws:iam::123456789012:role/CloudOpsEksAdministrator"

@@ -1,0 +1,52 @@
+misconfigurations:
+
+  # EKS 1.28+ provides default envelope encryption for Kubernetes
+  # API data using an AWS-owned KMS key.
+  #
+  # A customer-managed KMS key is intentionally not added to this
+  # cost-controlled development environment.
+  - id: AWS-0039
+    paths:
+      - "modules/eks/main.tf"
+    statement: "Accepted for the development EKS cluster; modern EKS provides default envelope encryption."
+
+  # The development EKS API endpoint intentionally remains public
+  # so it can be administered from the developer workstation and
+  # GitHub Actions without requiring a VPN, bastion host, or private
+  # GitHub Actions runner.
+  #
+  # Access is restricted using an explicit /32 CIDR allowlist.
+  - id: AWS-0040
+    paths:
+      - "modules/eks/main.tf"
+    statement: "Public EKS endpoint is required for development administration and is CIDR restricted."
+
+  # Trivy considers even a /32 public CIDR to be public exposure.
+  # This development cluster intentionally restricts access to the
+  # explicitly configured administrator IP instead of 0.0.0.0/0.
+  - id: AWS-0041
+    paths:
+      - "modules/eks/main.tf"
+    statement: "EKS public endpoint access is intentionally restricted to an explicit /32 administrator CIDR."
+
+  # Terraform state is already encrypted at rest using S3
+  # server-side encryption.
+  #
+  # A customer-managed KMS key is intentionally avoided in this
+  # development environment to reduce unnecessary cost/complexity.
+  - id: AWS-0132
+    paths:
+      - "bootstrap/main.tf"
+    statement: "Terraform state is encrypted with S3 server-side encryption; CMK is not required for this development environment."
+
+  # The development EKS worker nodes intentionally run in public
+  # subnets so they can reach AWS and container registries without
+  # requiring a NAT Gateway.
+  #
+  # This significantly reduces the cost of the temporary/demo
+  # environment. Production environments should instead use
+  # private worker subnets with controlled outbound connectivity.
+  - id: AWS-0164
+    paths:
+      - "modules/network/main.tf"
+    statement: "Accepted for the cost-controlled development EKS environment; public worker subnets intentionally avoid NAT Gateway cost."
