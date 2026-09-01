@@ -1,18 +1,9 @@
 name: Terraform PR
 
-# Run Terraform validation when relevant infrastructure files
-# are changed in a pull request.
+# Run Terraform validation for every pull request so the checks
+# can safely be required by main branch protection.
 on:
   pull_request:
-    paths:
-      - "**/*.tf"
-      - "**/*.tfvars"
-      - "**/*.tfvars.example"
-      - "**/.terraform.lock.hcl"
-      - "trivy.yaml"
-      - ".trivyignore.yaml"
-      - ".github/workflows/terraform-pr.yml"
-      - ".github/workflows/terraform-apply.yml"
 
 
 # Default workflow permissions.
