@@ -104,9 +104,13 @@ resource "aws_route_table" "public" {
 # Associate each public subnet with the Internet route table.
 resource "aws_route_table_association" "public" {
 
-  # Create one association per public subnet.
+  # Create one association per configured public subnet.
+  #
+  # Derive the instance count from configuration rather than from
+  # resource attributes so Terraform knows the count during planning,
+  # importing, and before any subnet exists.
   count = length(
-    aws_subnet.public,
+    var.availability_zones,
   )
 
   # Select the current subnet.
