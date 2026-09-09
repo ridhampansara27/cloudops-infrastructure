@@ -1,0 +1,19 @@
+﻿# OCI CLI profile configured on the operator workstation.
+oci_profile = "CLOUDOPS"
+
+# OCI home/deployment region.
+oci_region = "eu-frankfurt-1"
+
+# Replace locally with the real tenancy OCID.
+#
+# terraform.tfvars itself is ignored by Git.
+tenancy_ocid = "ocid1.tenancy.oc1..replace-me"
+
+# Environment metadata.
+project_name = "cloudops-insight"
+environment  = "oci-dev"
+
+# OCI network address space.
+vcn_cidr           = "10.70.0.0/16"
+api_subnet_cidr    = "10.70.0.0/28"
+worker_subnet_cidr = "10.70.10.0/24"
