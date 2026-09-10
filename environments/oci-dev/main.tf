@@ -54,3 +54,38 @@ module "oci_network" {
 
   kubernetes_api_allowed_cidr = var.kubernetes_api_allowed_cidr
 }
+
+
+# ============================================================
+# OCI Kubernetes Engine
+# ============================================================
+
+module "oke" {
+
+  source = "../../modules/oke"
+
+  providers = {
+    oci = oci
+  }
+
+  compartment_id = oci_identity_compartment.cloudops.id
+
+  vcn_id        = module.oci_network.vcn_id
+  api_subnet_id = module.oci_network.api_subnet_id
+  api_nsg_id    = module.oci_network.api_nsg_id
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kubernetes_version = var.oke_kubernetes_version
+
+  pods_cidr     = var.oke_pods_cidr
+  services_cidr = var.oke_services_cidr
+
+  # Important for a clean bootstrap:
+  # all network resources and their NSG rules must exist
+  # before OCI starts provisioning the control plane.
+  depends_on = [
+    module.oci_network,
+  ]
+}

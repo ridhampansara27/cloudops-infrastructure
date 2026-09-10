@@ -76,3 +76,25 @@ variable "kubernetes_api_allowed_cidr" {
   description = "IPv4 CIDR allowed to access the public Kubernetes API endpoint."
   type        = string
 }
+
+# ============================================================
+# OKE control-plane configuration
+# ============================================================
+
+variable "oke_kubernetes_version" {
+  description = "Kubernetes version for the OCI OKE cluster."
+  type        = string
+  default     = "v1.35.2"
+}
+
+variable "oke_pods_cidr" {
+  description = "Pod network CIDR used by Flannel Overlay."
+  type        = string
+  default     = "10.244.0.0/16"
+}
+
+variable "oke_services_cidr" {
+  description = "Kubernetes Service CIDR."
+  type        = string
+  default     = "10.96.0.0/16"
+}

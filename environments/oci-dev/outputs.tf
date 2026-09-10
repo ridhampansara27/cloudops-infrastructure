@@ -42,3 +42,18 @@ output "worker_subnet_id" {
   description = "OKE worker subnet OCID."
   value       = module.oci_network.worker_subnet_id
 }
+
+output "oke_cluster_name" {
+  description = "Name of the OCI OKE cluster."
+  value       = module.oke.cluster_name
+}
+
+output "oke_cluster_id" {
+  description = "OCID of the OCI OKE cluster."
+  value       = module.oke.cluster_id
+}
+
+output "oke_cluster_state" {
+  description = "Lifecycle state of the OCI OKE cluster."
+  value       = module.oke.cluster_state
+}
