@@ -51,4 +51,6 @@ module "oci_network" {
   vcn_cidr           = var.vcn_cidr
   api_subnet_cidr    = var.api_subnet_cidr
   worker_subnet_cidr = var.worker_subnet_cidr
+
+  kubernetes_api_allowed_cidr = var.kubernetes_api_allowed_cidr
 }

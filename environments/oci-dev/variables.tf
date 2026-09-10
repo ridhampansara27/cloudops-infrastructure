@@ -71,3 +71,8 @@ variable "worker_subnet_cidr" {
   type        = string
   default     = "10.70.10.0/24"
 }
+
+variable "kubernetes_api_allowed_cidr" {
+  description = "IPv4 CIDR allowed to access the public Kubernetes API endpoint."
+  type        = string
+}

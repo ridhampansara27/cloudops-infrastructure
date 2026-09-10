@@ -38,3 +38,8 @@ variable "worker_subnet_cidr" {
   description = "CIDR assigned to the OKE worker subnet."
   type        = string
 }
+
+variable "kubernetes_api_allowed_cidr" {
+  description = "IPv4 CIDR allowed to access the Kubernetes API endpoint."
+  type        = string
+}

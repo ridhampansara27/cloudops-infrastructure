@@ -208,3 +208,146 @@ resource "oci_core_network_security_group" "workers" {
   # from inside the Kubernetes cluster.
   freeform_tags = local.common_tags
 }
+
+# ============================================================
+# OKE Network Security Group rules
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Kubernetes API endpoint ingress
+# ------------------------------------------------------------
+
+resource "oci_core_network_security_group_security_rule" "api_from_workers_6443" {
+
+  network_security_group_id = oci_core_network_security_group.api.id
+
+  direction   = "INGRESS"
+  protocol    = "6"
+  source      = var.worker_subnet_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow OKE workers to access Kubernetes API port 6443."
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+
+resource "oci_core_network_security_group_security_rule" "api_from_workers_12250" {
+
+  network_security_group_id = oci_core_network_security_group.api.id
+
+  direction   = "INGRESS"
+  protocol    = "6"
+  source      = var.worker_subnet_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow OKE workers to communicate with control plane port 12250."
+
+  tcp_options {
+    destination_port_range {
+      min = 12250
+      max = 12250
+    }
+  }
+}
+
+
+resource "oci_core_network_security_group_security_rule" "api_path_discovery" {
+
+  network_security_group_id = oci_core_network_security_group.api.id
+
+  direction   = "INGRESS"
+  protocol    = "1"
+  source      = var.worker_subnet_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow ICMP fragmentation-needed messages from worker subnet."
+
+  icmp_options {
+    type = 3
+    code = 4
+  }
+}
+
+
+resource "oci_core_network_security_group_security_rule" "api_from_admin" {
+
+  network_security_group_id = oci_core_network_security_group.api.id
+
+  direction   = "INGRESS"
+  protocol    = "6"
+  source      = var.kubernetes_api_allowed_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow restricted administrative access to Kubernetes API."
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+
+# ------------------------------------------------------------
+# OKE worker ingress
+# ------------------------------------------------------------
+
+resource "oci_core_network_security_group_security_rule" "workers_from_workers" {
+
+  network_security_group_id = oci_core_network_security_group.workers.id
+
+  direction   = "INGRESS"
+  protocol    = "all"
+  source      = var.worker_subnet_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow communication between OKE worker nodes."
+}
+
+
+resource "oci_core_network_security_group_security_rule" "workers_from_api" {
+
+  network_security_group_id = oci_core_network_security_group.workers.id
+
+  direction   = "INGRESS"
+  protocol    = "6"
+  source      = var.api_subnet_cidr
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  # No destination-port restriction intentionally means TCP/ALL,
+  # matching Oracle's Flannel requirement.
+  description = "Allow Kubernetes API endpoint TCP communication to workers."
+}
+
+
+resource "oci_core_network_security_group_security_rule" "workers_path_discovery" {
+
+  network_security_group_id = oci_core_network_security_group.workers.id
+
+  direction   = "INGRESS"
+  protocol    = "1"
+  source      = "0.0.0.0/0"
+  source_type = "CIDR_BLOCK"
+  stateless   = false
+
+  description = "Allow ICMP fragmentation-needed messages for path discovery."
+
+  icmp_options {
+    type = 3
+    code = 4
+  }
+}

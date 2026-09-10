@@ -17,3 +17,7 @@ environment  = "oci-dev"
 vcn_cidr           = "10.70.0.0/16"
 api_subnet_cidr    = "10.70.0.0/28"
 worker_subnet_cidr = "10.70.10.0/24"
+
+# Replace with the public IPv4 address used for kubectl access.
+# Keep the real value in terraform.tfvars, which is ignored by Git.
+kubernetes_api_allowed_cidr = "203.0.113.10/32"
