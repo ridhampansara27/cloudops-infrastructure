@@ -74,6 +74,28 @@ module "oke" {
   api_subnet_id = module.oci_network.api_subnet_id
   api_nsg_id    = module.oci_network.api_nsg_id
 
+  worker_subnet_id = module.oci_network.worker_subnet_id
+  worker_nsg_id    = module.oci_network.worker_nsg_id
+
+  availability_domains = [
+    for ad in data.oci_identity_availability_domains.current.availability_domains :
+    ad.name
+  ]
+
+  # ----------------------------------------------------------
+  # OCI Always Free worker cost guard
+  # ----------------------------------------------------------
+  #
+  # These values are intentionally hard-coded for oci-dev.
+  # Changing a local tfvars file therefore cannot accidentally
+  # scale this environment beyond the intended architecture.
+
+  node_count           = 1
+  node_shape           = "VM.Standard.A1.Flex"
+  node_ocpus           = 2
+  node_memory_gbs      = 12
+  node_boot_volume_gbs = 50
+
   project_name = var.project_name
   environment  = var.environment
 
@@ -89,3 +111,4 @@ module "oke" {
     module.oci_network,
   ]
 }
+

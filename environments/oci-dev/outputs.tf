@@ -57,3 +57,18 @@ output "oke_cluster_state" {
   description = "Lifecycle state of the OCI OKE cluster."
   value       = module.oke.cluster_state
 }
+
+output "oke_node_pool_name" {
+  description = "Name of the OCI ARM64 managed node pool."
+  value       = module.oke.node_pool_name
+}
+
+output "oke_node_pool_state" {
+  description = "Lifecycle state of the OCI ARM64 managed node pool."
+  value       = module.oke.node_pool_state
+}
+
+output "oke_worker_image" {
+  description = "ARM64 Oracle Linux OKE image selected for the managed worker."
+  value       = module.oke.selected_worker_image_name
+}
