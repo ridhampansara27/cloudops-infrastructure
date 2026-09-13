@@ -1,19 +1,17 @@
-# Define Terraform compatibility.
+# ============================================================
+# Retired AWS development environment
+# ============================================================
+#
+# This Terraform environment previously managed the CloudOps
+# Insight AWS EKS development platform.
+#
+# The AWS runtime was retired after production migrated to
+# OCI OKE. No infrastructure resources or cloud providers are
+# intentionally declared here.
+#
+# backend.tf is retained only so the historical, now-empty
+# remote Terraform state remains addressable when required.
+
 terraform {
-
-  # Require modern Terraform.
   required_version = ">= 1.11.0"
-
-  # Declare AWS provider.
-  required_providers {
-
-    aws = {
-
-      # Use HashiCorp's official provider.
-      source = "hashicorp/aws"
-
-      # Stay within AWS Provider major version 6.
-      version = "~> 6.0"
-    }
-  }
 }

@@ -1,13 +1,11 @@
 name: Terraform PR
 
-# Run Terraform validation for every pull request so the checks
-# can safely be required by main branch protection.
+# Validate infrastructure changes on every pull request.
 on:
   pull_request:
 
-
-# Default workflow permissions.
-# The validation job only needs permission to read repository contents.
+# PR validation requires repository read access only.
+# No cloud credentials are granted to this workflow.
 permissions:
   contents: read
 
@@ -15,32 +13,28 @@ permissions:
 jobs:
 
   # ============================================================
-  # Terraform validation and security scanning
+  # Terraform validation
   # ============================================================
+  #
+  # IMPORTANT:
+  # Keep the job name "Terraform validate".
+  # Main branch protection requires this exact status context.
   terraform-check:
     name: Terraform validate
 
-    # Use GitHub's Ubuntu Linux runner.
     runs-on: ubuntu-24.04
-
-    # Supply environment-specific Terraform input values.
-    env:
-      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
-      TF_VAR_cluster_endpoint_public_access_cidrs: '["${{ vars.EKS_PUBLIC_ACCESS_CIDR }}"]'
-      TF_VAR_eks_admin_principal_arn: ${{ vars.EKS_ADMIN_PRINCIPAL_ARN }}
-      TF_VAR_node_instance_types: '["${{ vars.EKS_NODE_INSTANCE_TYPES }}"]'
 
     steps:
 
       # --------------------------------------------------------
-      # Checkout repository
+      # Checkout
       # --------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v6
 
 
       # --------------------------------------------------------
-      # Install Terraform
+      # Terraform
       # --------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -50,13 +44,7 @@ jobs:
 
 
       # --------------------------------------------------------
-      # Check Terraform formatting
-      #
-      # -check:
-      #   Fails if Terraform files are not properly formatted.
-      #
-      # -recursive:
-      #   Checks Terraform files in all subdirectories.
+      # Formatting
       # --------------------------------------------------------
       - name: Terraform format
         run: |
@@ -64,41 +52,49 @@ jobs:
 
 
       # --------------------------------------------------------
-      # Initialize Terraform without connecting to the real
-      # remote backend.
-      #
-      # This is safe for PR validation because we only need
-      # Terraform providers/modules to perform validation.
+      # Retired AWS environment
       # --------------------------------------------------------
-      - name: Terraform init
+      #
+      # environments/dev is intentionally retained only as a
+      # tombstone for the retired AWS EKS environment.
+      #
+      # Backend access is disabled because PR validation must not
+      # access historical AWS remote state.
+      - name: Validate retired AWS environment
         working-directory: environments/dev
 
         run: |
-          terraform init -backend=false
+          terraform init \
+            -backend=false \
+            -input=false
 
-
-      # --------------------------------------------------------
-      # Validate Terraform configuration.
-      #
-      # This checks syntax, references, provider configuration,
-      # variable usage, module structure, etc.
-      # --------------------------------------------------------
-      - name: Terraform validate
-        working-directory: environments/dev
-
-        run: |
           terraform validate
 
 
       # --------------------------------------------------------
-      # Scan Terraform infrastructure configuration for
-      # HIGH and CRITICAL security misconfigurations.
+      # OCI environment
+      # --------------------------------------------------------
       #
-      # Repository-specific Trivy behavior is defined in trivy.yaml.
-      # Accepted, documented development exceptions are defined in
-      # .trivyignore.yaml.
-      - name: Trivy IaC scan
+      # Validate the active OCI Terraform configuration without
+      # connecting to the OCI remote backend.
+      #
+      # terraform validate does not create, modify, or destroy
+      # cloud infrastructure.
+      - name: Validate OCI environment
+        working-directory: environments/oci-dev
 
+        run: |
+          terraform init \
+            -backend=false \
+            -input=false
+
+          terraform validate
+
+
+      # --------------------------------------------------------
+      # IaC security scan
+      # --------------------------------------------------------
+      - name: Trivy IaC scan
         uses: aquasecurity/trivy-action@v0.36.0
 
         with:
@@ -110,54 +106,43 @@ jobs:
 
 
   # ============================================================
-  # Terraform plan
+  # Terraform plan safety gate
   # ============================================================
+  #
+  # IMPORTANT:
+  # Main branch protection currently requires the exact status
+  # context "Terraform plan".
+  #
+  # OCI cloud-connected planning is intentionally NOT performed
+  # here until non-interactive OCI CI authentication is designed.
+  #
+  # Instead this job proves:
+  #
+  # 1. retired AWS cannot recreate infrastructure;
+  # 2. the retired configuration produces a no-op plan;
+  # 3. OCI is the active infrastructure environment.
   terraform-plan:
     name: Terraform plan
 
-    # ----------------------------------------------------------
-    # Only run Terraform plan for PRs created from branches
-    # inside this repository.
-    #
-    # Forked pull requests must NOT receive access to the AWS
-    # OIDC role or Terraform remote state.
-    # ----------------------------------------------------------
-    if: >
-      github.event.pull_request.head.repo.full_name == github.repository
-
-    # Terraform plan should only run after all validation and
-    # security checks succeed.
     needs:
       - terraform-check
 
-    # Use GitHub's Ubuntu Linux runner.
     runs-on: ubuntu-24.04
 
-    # Supply environment-specific Terraform input values.
-    env:
-      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
-      TF_VAR_cluster_endpoint_public_access_cidrs: '["${{ vars.EKS_PUBLIC_ACCESS_CIDR }}"]'
-      TF_VAR_eks_admin_principal_arn: ${{ vars.EKS_ADMIN_PRINCIPAL_ARN }}
-      TF_VAR_node_instance_types: '["${{ vars.EKS_NODE_INSTANCE_TYPES }}"]'
-    # ----------------------------------------------------------
-    # OIDC permission is granted ONLY to this job because this
-    # job needs to authenticate with AWS.
-    # ----------------------------------------------------------
     permissions:
       contents: read
-      id-token: write
 
     steps:
 
       # --------------------------------------------------------
-      # Checkout repository
+      # Checkout
       # --------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v6
 
 
       # --------------------------------------------------------
-      # Install Terraform
+      # Terraform
       # --------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -167,49 +152,98 @@ jobs:
 
 
       # --------------------------------------------------------
-      # Authenticate to AWS using GitHub Actions OIDC.
-      #
-      # No permanent AWS access keys are stored in GitHub.
-      #
-      # TERRAFORM_PLAN_ROLE_ARN must exist as a GitHub
-      # repository variable.
+      # AWS retirement guard
       # --------------------------------------------------------
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6.2.3
-
-        with:
-          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
-          aws-region: eu-central-1
-
-
-      # --------------------------------------------------------
-      # Initialize Terraform with the real S3 remote backend.
       #
-      # TERRAFORM_STATE_BUCKET must exist as a GitHub
-      # repository variable.
-      # --------------------------------------------------------
-      - name: Terraform init
-        working-directory: environments/dev
+      # Fail immediately if executable Terraform blocks are ever
+      # reintroduced into environments/dev.
+      - name: Guard retired AWS environment
+        shell: bash
 
         run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}"
+          set -euo pipefail
+
+          if grep \
+            -R \
+            -n \
+            -E \
+            --include='*.tf' \
+            '^[[:space:]]*(resource|module|data|provider|variable|output)[[:space:]]+"' \
+            environments/dev
+          then
+            echo "::error::Retired AWS environment contains executable Terraform blocks."
+            exit 1
+          fi
+
+          echo "Retired AWS environment contains no executable infrastructure blocks."
 
 
       # --------------------------------------------------------
-      # Generate Terraform execution plan.
-      #
-      # -input=false:
-      #   Prevents Terraform from waiting for interactive input.
-      #
-      # -no-color:
-      #   Makes GitHub Actions logs easier to read.
+      # AWS tombstone no-op plan
       # --------------------------------------------------------
-      - name: Terraform plan
-        working-directory: environments/dev
+      #
+      # backend.tf is intentionally excluded because this plan
+      # must remain completely disconnected from AWS.
+      - name: Plan retired AWS tombstone
+        shell: bash
 
         run: |
-          terraform plan \
+          set -euo pipefail
+
+          VALIDATION_DIR="${RUNNER_TEMP}/retired-aws-plan"
+
+          rm -rf "${VALIDATION_DIR}"
+          mkdir -p "${VALIDATION_DIR}"
+
+          cp \
+            environments/dev/versions.tf \
+            "${VALIDATION_DIR}/versions.tf"
+
+          terraform \
+            -chdir="${VALIDATION_DIR}" \
+            init \
+            -backend=false \
+            -input=false
+
+          terraform \
+            -chdir="${VALIDATION_DIR}" \
+            plan \
+            -refresh=false \
             -lock=false \
             -input=false \
             -no-color
+
+
+      # --------------------------------------------------------
+      # Active-platform guard
+      # --------------------------------------------------------
+      - name: Verify OCI is the active infrastructure target
+        shell: bash
+
+        run: |
+          set -euo pipefail
+
+          test -f environments/oci-dev/main.tf
+          test -f environments/oci-dev/providers.tf
+
+          grep \
+            -q \
+            'provider "oci"' \
+            environments/oci-dev/providers.tf
+
+          grep \
+            -q \
+            'module "oke"' \
+            environments/oci-dev/main.tf
+
+          echo "OCI OKE Terraform is the active infrastructure target."
+
+
+      # --------------------------------------------------------
+      # Explicit CI planning policy
+      # --------------------------------------------------------
+      - name: OCI cloud plan policy
+        run: |
+          echo "OCI configuration was validated successfully."
+          echo "Cloud-connected OCI terraform plan is intentionally disabled in PR CI."
+          echo "OCI CI authentication will be introduced separately."
