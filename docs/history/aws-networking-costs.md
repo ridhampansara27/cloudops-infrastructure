@@ -1,3 +1,5 @@
+> **Historical AWS EKS hosting document.** EKS hosting is retired. Do not run these steps against the current OCI OKE service. See the [current architecture](../architecture.md).
+
 # CloudOps AWS Networking Cost Strategy
 
 ## Development / portfolio environment

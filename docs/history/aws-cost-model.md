@@ -1,3 +1,5 @@
+> **Historical AWS EKS hosting document.** EKS hosting is retired. Do not run these steps against the current OCI OKE service. See the [current architecture](../architecture.md).
+
 # AWS Cost Model
 
 ## Always-on cost drivers
