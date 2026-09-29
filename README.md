@@ -1,37 +1,40 @@
-# CloudOps Insight infrastructure
+# CloudOps Insight · Infrastructure
 
-Terraform for the OCI platform hosting [CloudOps Insight](https://github.com/ridhampansara27/cloudops-insight). The application is deployed separately through [cloudops-gitops](https://github.com/ridhampansara27/cloudops-gitops) and Argo CD. Former AWS EKS hosting has been retired; AWS remains an external monitored customer cloud.
+[![PR checks](https://img.shields.io/badge/PR%20checks-Terraform%20validate%20%2B%20Trivy-2563EB)](https://github.com/ridhampansara27/cloudops-infrastructure/blob/main/.github/workflows/terraform-pr.yml)
+![Terraform 1.15.8 CI](https://img.shields.io/badge/Terraform%20CI-1.15.8-844FBA?logo=terraform&logoColor=white)
+![OCI provider 8.29.0](https://img.shields.io/badge/OCI%20provider-8.29.0-F80000)
+![OKE Basic](https://img.shields.io/badge/Cluster-OKE%20Basic-7C3AED)
+![Backup layers](https://img.shields.io/badge/PostgreSQL-2%20backup%20layers-059669)
 
-> **Certified commercial-launch infrastructure snapshot (29 September 2026):** repository `main` at `54ddda1611a036a60250fa8e49ab3f1bd36b468d`. Verify current Terraform state and OCI resources before any plan or recovery operation.
+**Terraform for the production OCI foundation behind [CloudOps Insight](https://github.com/ridhampansara27/cloudops-insight).** This repository defines the VCN, network security boundaries, OKE cluster and worker, Block Volume protection, private backup storage, and Sealed Secrets recovery resources. Kubernetes workloads are delivered separately through [cloudops-gitops](https://github.com/ridhampansara27/cloudops-gitops) and Argo CD.
 
-## Current OCI topology
+> [!IMPORTANT]
+> **Current host: OCI Frankfurt / OKE.** The `environments/oci-dev` name is historical; it is the active commercial host. AWS EKS infrastructure is retired and preserved only for state history and architectural reference. The certified infrastructure snapshot was `54ddda1611a036a60250fa8e49ab3f1bd36b468d` on 29 September 2026. Check live OCI resources and remote Terraform state before any plan or recovery operation.
 
-```mermaid
-flowchart TB
-    USERS["Users"] --> CF["Cloudflare edge"]
-    CF --> TUNNEL["Outbound Cloudflare Tunnel"]
-    subgraph VCN["OCI Frankfurt · VCN"]
-      API["Public OKE API · restricted CIDR / NSG"]
-      subgraph WORKER["OKE Basic · 1 ARM A1 worker"]
-        TUNNEL --> FE["Frontend / NGINX"]
-        FE --> BACK["FastAPI · Celery"]
-        BACK --> PG[("PostgreSQL PVC · OCI Block Volume")]
-        BACK --> REDIS[("Redis · ephemeral")]
-      end
-    end
-    PG --> VOL[("OCI volume backup policy")]
-    PG --> OBJ[("Logical dumps · private Object Storage")]
-    STATE[("Separate Object Storage Terraform state")] --> TF["Authenticated operator Terraform"]
-    TF --> VCN
-    classDef edge fill:#dbeafe,stroke:#2563eb,color:#172554;
-    classDef compute fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
-    classDef data fill:#dcfce7,stroke:#16a34a,color:#14532d;
-    class USERS,CF,TUNNEL,API edge;
-    class FE,BACK,TF compute;
-    class PG,REDIS,VOL,OBJ,STATE data;
-```
+**Explore:** [Architecture](#architecture) · [Repository map](#repository-map) · [Versions](#versions-and-sizing-represented-by-code) · [Terraform workflow](#terraform-state-and-change-process) · [Recovery](#backups-and-disaster-recovery)
+
+## Architecture
+
+![Color-coded OCI infrastructure architecture showing Terraform control plane, restricted OKE API, Cloudflare Tunnel application access, one ARM worker, distinct state and backup buckets, and PostgreSQL protection](docs/diagrams/oci-topology.svg)
+
+The browser path is Cloudflare → outbound Tunnel → frontend on OKE. The public Kubernetes API is an **operator control-plane path** restricted by NSG and administrator CIDR; it is not the application ingress. Terraform uses a separately provisioned private Object Storage bucket for state. The PostgreSQL volume policy and the GitOps logical-dump job protect different failure modes. [Detailed topology and trust boundaries](docs/architecture.md) describes the current OCI and historical AWS split.
+
+| Repository | Responsibility | Change boundary |
+|---|---|---|
+| [cloudops-insight](https://github.com/ridhampansara27/cloudops-insight) | Product code, migrations, tests, SHA-tagged images | Application CI and image publication |
+| [cloudops-gitops](https://github.com/ridhampansara27/cloudops-gitops) | Helm, OCI values, Argo CD, Cloudflare Tunnel and logical dump CronJob | Reviewed values change and controlled sync |
+| **This repository** | OCI VCN, OKE, state, volume policy, backup bucket and recovery vault | Authenticated Terraform plan and apply |
 
 The API endpoint is public but restricted by its NSG and configured administrator CIDR. The worker subnet permits public IPs for low-cost outbound access, with no Internet-facing application ports in its NSG. Application traffic enters through Cloudflare Tunnel, not an OCI Load Balancer. This single-worker, in-cluster PostgreSQL design is **not highly available**.
+
+### Design trade-offs
+
+| Choice | Benefit | Limit to plan around |
+|---|---|---|
+| One ARM A1 worker and OKE Basic | Small production footprint and simple operations | A worker or in-cluster database outage interrupts the service |
+| Outbound Cloudflare Tunnel | HTTPS public access without an OCI application Load Balancer | Tunnel and edge availability are part of the application path |
+| Public OKE API restricted by CIDR/NSG | Operator access without a bastion | Administrator CIDR and credentials require careful maintenance |
+| PostgreSQL on OCI Block Volume | Persistent storage with volume backup policy | Restore validation and logical backup monitoring remain essential |
 
 ## Repository map
 
