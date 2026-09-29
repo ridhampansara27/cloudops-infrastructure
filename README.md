@@ -90,3 +90,7 @@ Use [the backup and state recovery runbook](docs/runbooks/oci-recovery.md). The 
 The active VCN uses network security groups to restrict the public Kubernetes API to an explicit administrator CIDR. Cloudflare Tunnel supplies public application access without an OCI application Load Balancer. OCI Kubernetes uses Flannel Overlay; do not claim Kubernetes NetworkPolicy enforcement until the networking implementation changes.
 
 See [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md). No documentation change in this repository requires or performs a Terraform apply.
+
+---
+
+© 2026 Ridham Pansara. All rights reserved.
