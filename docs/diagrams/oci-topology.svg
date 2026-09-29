@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780" role="img" aria-labelledby="title desc">
+  <title id="title">OCI infrastructure for CloudOps Insight</title>
+  <desc id="desc">Terraform uses a separate remote-state Object Storage bucket to manage the OCI VCN and OKE Basic cluster. The public Kubernetes API is restricted by CIDR and NSG. Users reach the single ARM worker through Cloudflare Tunnel, not an OCI load balancer. PostgreSQL uses Block Volume policy backups and separate logical dumps in private Object Storage. Vault protects Sealed Secrets recovery material.</desc>
+  <defs>
+    <linearGradient id="page" x2="1" y2="1"><stop stop-color="#f8fbff"/><stop offset="1" stop-color="#f5f3ff"/></linearGradient>
+    <filter id="shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#19274b" flood-opacity=".12"/></filter>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#64748b"/></marker>
+    <marker id="green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#059669"/></marker>
+  </defs>
+  <rect width="1200" height="780" rx="22" fill="url(#page)"/>
+  <text x="42" y="57" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#101b3a">OCI / OKE infrastructure</text>
+  <text x="42" y="87" font-family="Arial,sans-serif" font-size="15" fill="#52617c">Active commercial host in Frankfurt · Terraform-managed cloud resources · GitOps-managed workloads</text>
+
+  <rect x="38" y="124" width="535" height="350" rx="18" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2"/>
+  <text x="58" y="158" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#1d4ed8">OPERATOR + CONTROL PLANE</text>
+  <rect x="62" y="192" width="210" height="89" rx="14" fill="#fff" stroke="#93c5fd" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="91" cy="222" r="16" fill="#dbeafe"/><path d="M83 215h16m-16 7h16m-16 7h12" stroke="#2563eb" stroke-width="2"/>
+  <text x="120" y="222" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#172554">Terraform operator</text>
+  <text x="82" y="256" font-family="Arial,sans-serif" font-size="12" fill="#64748b">authenticated OCI profile</text>
+  <rect x="329" y="192" width="217" height="89" rx="14" fill="#fff" stroke="#93c5fd" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="358" cy="222" r="16" fill="#dbeafe"/><path d="M349 218h18m-16 5h14m-12 5h10" stroke="#2563eb" stroke-width="2"/>
+  <text x="387" y="222" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#172554">Terraform state</text>
+  <text x="349" y="256" font-family="Arial,sans-serif" font-size="12" fill="#64748b">separate private Object Storage</text>
+  <path d="M272 236h57" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+  <rect x="62" y="330" width="210" height="104" rx="14" fill="#fff" stroke="#93c5fd" stroke-width="2" filter="url(#shadow)"/>
+  <text x="82" y="363" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#172554">OCI VCN + NSGs</text>
+  <text x="82" y="388" font-family="Arial,sans-serif" font-size="12" fill="#64748b">worker and API subnets</text>
+  <text x="82" y="409" font-family="Arial,sans-serif" font-size="12" fill="#64748b">application ports not public</text>
+  <rect x="329" y="330" width="217" height="104" rx="14" fill="#fff" stroke="#93c5fd" stroke-width="2" filter="url(#shadow)"/>
+  <text x="349" y="363" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#172554">OKE Basic API</text>
+  <text x="349" y="388" font-family="Arial,sans-serif" font-size="12" fill="#64748b">public endpoint</text>
+  <text x="349" y="409" font-family="Arial,sans-serif" font-size="12" fill="#64748b">administrator CIDR + NSG</text>
+  <path d="M167 281v49" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M272 382h57" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="600" y="124" width="562" height="350" rx="18" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="2"/>
+  <text x="620" y="158" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#6d28d9">PUBLIC ROUTE + OKE WORKER</text>
+  <rect x="625" y="192" width="210" height="89" rx="14" fill="#fff" stroke="#c4b5fd" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="223" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#24154f">Cloudflare edge</text>
+  <text x="645" y="250" font-family="Arial,sans-serif" font-size="12" fill="#64748b">browser HTTPS and DNS</text>
+  <path d="M835 236h44" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="886" y="192" width="246" height="89" rx="14" fill="#fff" stroke="#c4b5fd" stroke-width="2" filter="url(#shadow)"/>
+  <text x="906" y="223" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#24154f">Outbound Tunnel</text>
+  <text x="906" y="250" font-family="Arial,sans-serif" font-size="12" fill="#64748b">no OCI application Load Balancer</text>
+  <path d="M1009 281v39" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="326" width="507" height="108" rx="14" fill="#fff" stroke="#c4b5fd" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="354" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#24154f">1 × VM.Standard.A1.Flex · 2 OCPUs · 12 GB RAM</text>
+  <rect x="645" y="374" width="99" height="40" rx="9" fill="#ede9fe"/><text x="660" y="400" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#5b21b6">Frontend</text>
+  <rect x="753" y="374" width="91" height="40" rx="9" fill="#ede9fe"/><text x="773" y="400" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#5b21b6">API</text>
+  <rect x="853" y="374" width="123" height="40" rx="9" fill="#d1fae5"/><text x="869" y="400" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#047857">PostgreSQL</text>
+  <rect x="985" y="374" width="127" height="40" rx="9" fill="#d1fae5"/><text x="1003" y="400" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#047857">Redis / Celery</text>
+  <path d="M546 382h79" stroke="#64748b" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+  <text x="553" y="363" font-family="Arial,sans-serif" font-size="11" fill="#64748b">cluster control</text>
+
+  <rect x="38" y="503" width="1124" height="205" rx="18" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="2"/>
+  <text x="58" y="537" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#047857">DATA + RECOVERY RESOURCES</text>
+  <rect x="62" y="563" width="231" height="99" rx="14" fill="#fff" stroke="#6ee7b7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="82" y="597" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#064e3b">PostgreSQL PVC</text>
+  <text x="82" y="623" font-family="Arial,sans-serif" font-size="12" fill="#64748b">50 GiB OCI Block Volume</text>
+  <path d="M293 612h40" stroke="#059669" stroke-width="2.5" marker-end="url(#green)"/>
+  <rect x="340" y="563" width="241" height="99" rx="14" fill="#fff" stroke="#6ee7b7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="360" y="597" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#064e3b">Volume backup policy</text>
+  <text x="360" y="623" font-family="Arial,sans-serif" font-size="12" fill="#64748b">daily 7d · weekly 28d</text>
+  <path d="M177 563v-15h569v15" fill="none" stroke="#059669" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#green)"/>
+  <rect x="628" y="563" width="235" height="99" rx="14" fill="#fff" stroke="#6ee7b7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="648" y="597" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#064e3b">GitOps dump CronJob</text>
+  <text x="648" y="623" font-family="Arial,sans-serif" font-size="12" fill="#64748b">daily custom-format pg_dump</text>
+  <path d="M863 612h40" stroke="#059669" stroke-width="2.5" marker-end="url(#green)"/>
+  <rect x="910" y="563" width="222" height="99" rx="14" fill="#fff" stroke="#6ee7b7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="930" y="597" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#064e3b">Object Storage</text>
+  <text x="930" y="623" font-family="Arial,sans-serif" font-size="12" fill="#64748b">private logical dumps · 30d</text>
+  <text x="62" y="689" font-family="Arial,sans-serif" font-size="12" fill="#047857">OCI Vault/key protects Sealed Secrets recovery; the Terraform state bucket above is separate from the logical backup bucket.</text>
+  <rect x="38" y="727" width="1124" height="30" rx="9" fill="#fff7ed" stroke="#fed7aa"/>
+  <text x="58" y="748" font-family="Arial,sans-serif" font-size="12" fill="#9a3412">Historical AWS EKS is retired as a host · AWS customer accounts are monitored externally through read-only cross-account STS roles</text>
+</svg>
