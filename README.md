@@ -1,220 +1,89 @@
-# CloudOps Insight Infrastructure
+# CloudOps Insight infrastructure
 
-Terraform infrastructure for the CloudOps Insight GitOps-based Kubernetes platform.
+Terraform for the OCI platform hosting [CloudOps Insight](https://github.com/ridhampansara27/cloudops-insight). The application is deployed separately through [cloudops-gitops](https://github.com/ridhampansara27/cloudops-gitops) and Argo CD. Former AWS EKS hosting has been retired; AWS remains an external monitored customer cloud.
 
-CloudOps Insight currently runs on Oracle Cloud Infrastructure using OCI Kubernetes Engine (OKE).
-The original AWS EKS hosting platform has been retired after the successful production migration.
+> **Certified commercial-launch infrastructure snapshot (29 September 2026):** repository `main` at `54ddda1611a036a60250fa8e49ab3f1bd36b468d`. Verify current Terraform state and OCI resources before any plan or recovery operation.
 
-## Current Production Architecture
+## Current OCI topology
 
 ```mermaid
-flowchart LR
-    User[Users] --> CF[Cloudflare]
-    CF --> Tunnel[Cloudflare Tunnel]
-    Tunnel --> Frontend[Frontend / NGINX]
-    Frontend --> Backend[Backend API]
-    Backend --> PostgreSQL[(PostgreSQL)]
-    Backend --> Redis[(Redis)]
-    Worker[Celery Worker] --> PostgreSQL
-    Worker --> Redis
-    Backend --> AWS[AWS APIs]
-    Worker --> AWS
-    GitHub[GitHub Repositories] --> ArgoCD[Argo CD]
-    ArgoCD --> OKE[OCI OKE]
+flowchart TB
+    USERS["Users"] --> CF["Cloudflare edge"]
+    CF --> TUNNEL["Outbound Cloudflare Tunnel"]
+    subgraph VCN["OCI Frankfurt · VCN"]
+      API["Public OKE API · restricted CIDR / NSG"]
+      subgraph WORKER["OKE Basic · 1 ARM A1 worker"]
+        TUNNEL --> FE["Frontend / NGINX"]
+        FE --> BACK["FastAPI · Celery"]
+        BACK --> PG[("PostgreSQL PVC · OCI Block Volume")]
+        BACK --> REDIS[("Redis · ephemeral")]
+      end
+    end
+    PG --> VOL[("OCI volume backup policy")]
+    PG --> OBJ[("Logical dumps · private Object Storage")]
+    STATE[("Separate Object Storage Terraform state")] --> TF["Authenticated operator Terraform"]
+    TF --> VCN
+    classDef edge fill:#dbeafe,stroke:#2563eb,color:#172554;
+    classDef compute fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+    classDef data fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    class USERS,CF,TUNNEL,API edge;
+    class FE,BACK,TF compute;
+    class PG,REDIS,VOL,OBJ,STATE data;
 ```
 
-## Production Platform
+The API endpoint is public but restricted by its NSG and configured administrator CIDR. The worker subnet permits public IPs for low-cost outbound access, with no Internet-facing application ports in its NSG. Application traffic enters through Cloudflare Tunnel, not an OCI Load Balancer. This single-worker, in-cluster PostgreSQL design is **not highly available**.
 
-Production is hosted in OCI Frankfurt using:
+## Repository map
 
-- OCI Kubernetes Engine (OKE)
-- OKE Basic cluster
-- ARM64 VM.Standard.A1.Flex worker
-- 1 worker node
-- 2 OCPUs
-- 12 GB memory
-- OCI Virtual Cloud Network
-- OCI Block Volume CSI storage
-- OCI Object Storage remote Terraform state
+| Path | Status and ownership |
+|---|---|
+| `environments/oci-dev/` | **Active** OCI compartment, VCN, OKE, backups, bucket/lifecycle policy, Sealed Secrets recovery vault, remote state |
+| `modules/oci-network/`, `modules/oke/` | Reusable OCI VCN/security and OKE components |
+| `bootstrap/` | Historical AWS state and GitHub OIDC bootstrap configuration; inspect before any use |
+| `environments/dev/` | Retired EKS environment tombstone, retained for state-history safety |
+| `modules/eks/`, `modules/network/`, `modules/rds/`, `modules/iam/`, `modules/secrets/` | Historical AWS architecture modules, not referenced by active OCI environment |
+| `docs/history/` | Preserved AWS cost, services, networking, and demo notes |
 
-The platform is intentionally designed as a low-cost portfolio and demonstration environment.
+The label `oci-dev` is historical: it is the currently used OCI commercial host. See [architecture](docs/architecture.md) for current and historical boundaries.
 
-## Kubernetes Workloads
+## Versions and sizing represented by code
 
-The OKE cluster runs:
+| Component | Configured value | Source |
+|---|---|---|
+| Terraform CLI | `>= 1.11.0` required; CI uses `1.15.8` | OCI `versions.tf`, PR workflow |
+| Oracle OCI provider | `8.29.0` locked | OCI `.terraform.lock.hcl` |
+| OKE Kubernetes | `v1.35.2` **variable default**, not live verification | OCI `variables.tf` |
+| Cluster and networking | Basic tier, Flannel Overlay | `modules/oke/main.tf` |
+| Worker | 1 × `VM.Standard.A1.Flex`, 2 OCPUs, 12 GB RAM, 50 GB boot volume | OCI `main.tf` |
+| AWS bootstrap providers | `6.60.0` and `6.62.0` locks | Two historical bootstrap lockfiles |
 
-- React/Vite frontend
-- backend API
-- Celery worker
-- Celery Beat
-- PostgreSQL
-- Redis
-- Argo CD
-- Cloudflare Tunnel connector
+Kubernetes and node-image versions must be verified against the running OCI cluster. PostgreSQL `17-alpine` and application image tags live in GitOps rather than Terraform.
 
-Application images are published as multi-platform containers supporting both linux/amd64 and linux/arm64.
+## Terraform state and change process
 
-## Public Access
+OCI state is stored in a separately provisioned private Object Storage bucket; the state bucket is **not** managed by the state it holds. Local `terraform.tfvars` and OCI CLI API-key profile are ignored by Git. Never commit state, plans, API keys, bucket credentials, or a real administrator CIDR.
 
-Production traffic is exposed through Cloudflare Tunnel.
+Pull-request CI runs formatting, backend-disabled OCI validation, Trivy IaC scanning, and a credential-free **retired AWS tombstone no-op plan**. Its required check named “Terraform plan” is **not** an OCI cloud-connected plan. An authenticated operator currently reviews and applies OCI changes manually.
 
-No OCI public Load Balancer is required for the application.
+Read [the OCI change runbook](docs/runbooks/oci-change.md) before planning or applying. The following commands are **local static validation only**:
 
-Production hostname:
-
-`cloudinsight.ridhampansara.dev`
-
-Traffic path:
-
-```text
-Internet
-    |
-Cloudflare
-    |
-Cloudflare Tunnel
-    |
-OCI OKE
-    |
-Frontend / NGINX
-    |
-Backend API
+```powershell
+Set-Location environments/oci-dev
+terraform fmt -check -recursive
+terraform init -backend=false
+terraform validate
 ```
 
-## GitOps
+`terraform init -backend=false` does not check remote state or current OCI drift. A cloud-connected plan requires the authorized OCI profile, state access, and an operator review.
 
-Application deployment is managed through the cloudops-gitops repository.
+## Backups and disaster recovery
 
-```text
-Application repository
-        |
-        v
-GitHub Container Registry
-        |
-        v
-GitOps repository
-        |
-        v
-Argo CD
-        |
-        v
-OCI OKE
-```
+Terraform assigns the PostgreSQL Block Volume daily incremental backups (7-day retention) and weekly incremental backups (28-day retention). It also manages a private logical-backup bucket with a 30-day object lifecycle, lifecycle service IAM, and protected OCI Vault/key resources for Sealed Secrets recovery. The GitOps CronJob produces and uploads the **logical** dumps; Terraform does not execute that Job.
 
-Terraform manages cloud infrastructure.
-Argo CD manages Kubernetes application desired state.
+Use [the backup and state recovery runbook](docs/runbooks/oci-recovery.md). The certified launch included an isolated database restore drill, but each subsequent backup still needs independent monitoring and periodic restore testing.
 
-## AWS Monitoring Integration
+## Security and contribution
 
-AWS is no longer used to host CloudOps Insight.
+The active VCN uses network security groups to restrict the public Kubernetes API to an explicit administrator CIDR. Cloudflare Tunnel supplies public application access without an OCI application Load Balancer. OCI Kubernetes uses Flannel Overlay; do not claim Kubernetes NetworkPolicy enforcement until the networking implementation changes.
 
-AWS remains a monitored cloud provider so CloudOps Insight can continue demonstrating multi-cloud resource discovery, metrics, cost analysis, health monitoring and FinOps functionality.
-
-The OCI-hosted application accesses AWS through a restricted bootstrap identity that assumes:
-
-`CloudOpsReadOnlyRole`
-
-These monitoring identities are intentionally outside the retired AWS EKS Terraform state.
-
-## Terraform Environments
-
-### environments/oci-dev
-
-Active OCI infrastructure environment.
-
-It manages the OCI project compartment, networking and OKE platform.
-
-Reusable OCI modules:
-
-```text
-modules/
-|-- oci-network/
-`-- oke/
-```
-
-### environments/dev
-
-Retired AWS EKS environment.
-
-This directory is retained only as a tombstone documenting the former AWS platform and historical remote-state location.
-
-It contains no active Terraform resources, modules, providers, variables or outputs.
-
-It must not be used to recreate the retired AWS hosting platform.
-
-## Terraform State
-
-### OCI
-
-Active OCI Terraform state is stored remotely in OCI Object Storage.
-
-The backend storage is provisioned separately from the Terraform state it stores.
-
-### Retired AWS
-
-The historical AWS development backend configuration is retained for documentation and state-history purposes.
-
-The retired AWS Terraform state contains no managed runtime resources.
-
-## Pull Request CI
-
-GitHub Actions performs credential-free Terraform validation:
-
-1. terraform fmt -check -recursive
-2. validate the retired AWS tombstone
-3. validate the OCI Terraform configuration with the backend disabled
-4. run Trivy IaC security scanning
-5. verify that the retired AWS environment cannot recreate infrastructure
-6. execute the credential-free AWS tombstone no-op plan
-
-Required branch-protection checks:
-
-- Terraform validate
-- Terraform plan
-
-The Terraform plan status is currently a safety gate and does not run a cloud-connected OCI execution plan.
-
-## OCI Infrastructure Changes
-
-Cloud-connected OCI Terraform plan and apply operations are currently performed manually from an authenticated operator workstation using the OCI CLI API-key profile.
-
-GitHub Actions does not currently receive OCI cloud credentials.
-
-Non-interactive OCI CI authentication can be introduced separately in a future hardening stage.
-
-## Security
-
-- no OCI credentials committed to Git
-- OCI credentials remain in the local OCI CLI configuration
-- Terraform state stored remotely
-- main branch protection enabled
-- required Terraform validation checks
-- Trivy IaC scanning
-- GitOps-based Kubernetes deployment
-- restricted AWS read-only monitoring integration
-- no AWS application hosting infrastructure
-- no OCI application Load Balancer
-- Cloudflare Tunnel for production ingress
-
-## Related Repositories
-
-### cloudops-insight
-
-Application source, frontend/backend tests, container builds and multi-platform GHCR publishing.
-
-### cloudops-gitops
-
-Helm configuration, Argo CD applications and Kubernetes desired state.
-
-### cloudops-infrastructure
-
-Terraform cloud infrastructure and infrastructure CI validation.
-
-## Migration Status
-
-AWS EKS hosting has been fully retired.
-
-The production architecture is now:
-
-**OCI OKE + GitOps + Argo CD + Cloudflare Tunnel**
-
-AWS remains only as a monitored cloud provider for CloudOps Insight.
+See [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md). No documentation change in this repository requires or performs a Terraform apply.
